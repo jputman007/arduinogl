@@ -50,10 +50,9 @@ void multMatrix(float * dest, float * src1, float * src2) {
 
 void pushMatrix(float * m) {
     
-    if(glMatrixStackTop < MAX_MATRICES) {
-        
-        copyMatrix(glMatrixStack[glMatrixStackTop], m);
+    if(glMatrixStackTop < MAX_MATRICES-1) {
         glMatrixStackTop++;
+        copyMatrix(glMatrixStack[glMatrixStackTop], m);
     }
 }
 
@@ -109,11 +108,23 @@ void glMatrixMode(GLMatrixMode mode) {
 }
 
 void glMultMatrixf(float * m) {
-    multMatrix(glMatrices[glmatrixMode], glMatrices[glmatrixMode], m);
+    if (glmatrixMode == GL_PROJECTION){
+        multMatrix(glMatrices[glmatrixMode], glMatrices[glmatrixMode], m);
+    }
+    if (glmatrixMode == GL_MODELVIEW)
+    {
+        multMatrix(glMatrixStack[glMatrixStackTop], glMatrixStack[glMatrixStackTop], m);
+    }
 }
 
 void glLoadMatrixf(float * m) {
-    copyMatrix(glMatrices[glmatrixMode], m);
+    if(glmatrixMode == GL_PROJECTION){
+         copyMatrix(glMatrices[glmatrixMode], m);
+    }
+    if (glmatrixMode == GL_MODELVIEW)
+    {
+        copyMatrix(glMatrixStack[glMatrixStackTop], m);
+    }
 }
 
 void glLoadIdentity(void) {
@@ -130,7 +141,10 @@ void glLoadIdentity(void) {
 }
 
 void glPushMatrix(void) {
-    pushMatrix(glMatrices[glmatrixMode]);
+    if (glmatrixMode == GL_MODELVIEW)
+    {
+        pushMatrix(glMatrixStack[glMatrixStackTop]);
+    }
 }
 
 void glPopMatrix(void) {
@@ -269,7 +283,13 @@ void glScalef(float x, float y, float z) {
 }
 
 void gluLookAt(float eyeX, float eyeY, float eyeZ, float centerX, float centerY, float centerZ, float upX, float upY, float upZ) {
-    
+    // We only expect the LookAt function to modify the projection matrix so we take the extra precaution of selecting it here.
+    // Save the current mode to return to at the end of this function
+    GLMatrixMode glmatrixMode_current = glmatrixMode;
+
+    //these changes are for the modelview, update the global variable for these changes.
+    glmatrixMode = GL_PROJECTION;
+
     float dir[3], up[3];
     
     dir[0] = centerX - eyeX;
@@ -311,6 +331,9 @@ void gluLookAt(float eyeX, float eyeY, float eyeZ, float centerX, float centerY,
     
     glMultMatrixf(m);
     glTranslatef(-eyeX, -eyeY, -eyeZ);
+
+    // Back to the mode before this function
+    glmatrixMode = glmatrixMode_current;
 }
 
 /* Vertices */
@@ -373,6 +396,8 @@ void glEnd(void) {
         return;
     
     float modelviewProjection[16];
+    //use the top of stack for the ModelView matrix
+    copyMatrix(glMatrices[GL_MODELVIEW], glMatrixStack[glMatrixStackTop]);
     multMatrix(modelviewProjection, glMatrices[GL_PROJECTION], glMatrices[GL_MODELVIEW]);
     
     int frameWidth = glCanvas->width();
